@@ -1,0 +1,382 @@
+title: "variable selection "
+output: pdf_document
+date: "2025-12-10"
+---
+
+
+``````{r knitr::opts_chunk$set(echo = TRUE)}
+```
+
+```{r setup, include=FALSE}
+# Set global options and notebook root directory
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/Asus.B990/Desktop/Regrassion Project")
+
+```
+
+
+```{r load-data, echo=TRUE}
+data <- read.csv("StudentPerformanceFactors.csv")
+if(interactive()) View(data)
+```
+
+
+```{r}
+############################################################
+# 1. LOAD DATA
+############################################################
+library(readr)
+
+data <- read_csv("StudentPerformanceFactors.csv",, show_col_types = FALSE)
+Sample <- data   # original copy
+
+############################################################
+# 2. REMOVE OUTLIERS (your provided list)
+############################################################
+Sample3 <- Sample[-c(95, 218, 405, 530, 559, 561, 638, 771, 837, 920, 1100, 1108, 
+                     1110, 1352, 1526, 1608, 1845, 1864, 2077, 2293, 2422, 2426, 
+                     2514, 2543, 2596, 2688, 2905, 2955, 3125, 3142, 3365, 3458, 
+                     3580, 3925, 3933, 4193, 4255, 4298, 4356, 4406, 4532, 4584, 
+                     4667, 4780, 5126, 5967, 5990, 6348, 6394, 6523), ]
+```
+
+############################################################
+# 3. CONVERT QUALITATIVE VARIABLES TO FACTORS
+############################################################
+```{r}
+
+qual_vars <- c("Parental_Involvement", "Access_to_Resources",
+               "Extracurricular_Activities", "Motivation_Level",
+               "Internet_Access", "Family_Income", "Teacher_Quality",
+               "School_Type", "Peer_Influence", "Learning_Disabilities",
+               "Parental_Education_Level", "Distance_from_Home", "Gender")
+
+Sample3[qual_vars] <- lapply(Sample3[qual_vars], factor)
+
+Sample3 <- na.omit(Sample3)
+```
+
+############################################################
+# CHUNK 4: BUILD THE FULL MODEL (OUTLIER REMOVED)
+############################################################
+# Convert categorical variables into dummy factors for model2
+```{r}
+dummyParental_I <- factor(Sample3$Parental_Involvement)
+dummyAccess_to_Resources <- factor(Sample3$Access_to_Resources)
+dummyExtracurricular_Activities <- factor(Sample3$Extracurricular_Activities)
+dummyMotivation_Level <- factor(Sample3$Motivation_Level)
+dummyInternet_Access <- factor(Sample3$Internet_Access)
+dummyFamily_Income <- factor(Sample3$Family_Income)
+dummyTeacher_Quality <- factor(Sample3$Teacher_Quality)
+dummySchool_Type <- factor(Sample3$School_Type)
+dummyPeer_Influence <- factor(Sample3$Peer_Influence)
+dummyLearning_Disabilities <- factor(Sample3$Learning_Disabilities)
+dummyParental_Education_Level <- factor(Sample3$Parental_Education_Level)
+dummyDistance_from_Home <- factor(Sample3$Distance_from_Home)
+dummyGender <- factor(Sample3$Gender)
+
+v1 <- Sample3$Hours_Studied
+v2 <- Sample3$Attendance
+v3 <- Sample3$Sleep_Hours
+v4 <- Sample3$Previous_Scores
+v5 <- Sample3$Tutoring_Sessions
+v6 <- Sample3$Physical_Activity
+
+# Full model after removing outliers
+full.Model2 <- lm(Exam_Score ~ dummyParental_I + dummyAccess_to_Resources + 
+                    dummyExtracurricular_Activities + dummyMotivation_Level +
+                    dummyInternet_Access + dummyFamily_Income + dummyTeacher_Quality +
+                    dummySchool_Type + dummyPeer_Influence + dummyLearning_Disabilities +
+                    dummyDistance_from_Home + dummyGender +dummyParental_Education_Level+ v1 + v2 + v3 + v4 + v5 + v6,
+                  data = Sample3)
+
+cat("=== FULL MODEL AFTER OUTLIER REMOVAL ===\n")
+summary(full.Model2)
+
+# Plot model diagnostics
+plot(full.Model2)
+```
+
+  
+  
+```{r}
+cat("\n=== BACKWARD ELIMINATION MODEL ===\n")
+backward.model<-step(full.Model,direction = "backward")
+
+
+
+```
+
+############################################################
+# 5. MODEL SELECTION
+############################################################
+
+```{r}
+# 6a. BACKWARD ELIMINATION
+backward.model <- step(full.Model2, direction="backward", trace=FALSE)
+
+cat("\n=== BACKWARD ELIMINATION MODEL ===\n")
+summary(backward.model)
+```
+
+```{r}
+
+# 6b. FORWARD SELECTION
+empty.model <- lm(Exam_Score ~ 1, data=Sample3)
+forward.model <- step(empty.model,
+                      scope = formula(full.Model2),
+                      direction = "forward",
+                      trace = FALSE)
+cat("\n=== FORWARD SELECTION MODEL ===\n")
+summary(forward.model)
+
+```
+
+```{r}
+# 6c. STEPWISE SELECTION
+stepwise.model <- step(full.Model2, direction="both", trace=FALSE)
+cat("\n=== STEPWISE MODEL ===\n")
+summary(stepwise.model)
+
+```
+
+
+
+```{r}
+
+```
+
+############################################################
+# 6. COMPARE MODELS (AIC, BIC, Adj-R²)
+############################################################
+```{r}
+############################################################
+# CHUNK 7: MODEL COMPARISON
+############################################################
+model.names <- c("Full", "Backward", "Forward", "Stepwise")
+
+AIC.values <- c(AIC(full.Model2), AIC(backward.model), AIC(forward.model), AIC(stepwise.model))
+BIC.values <- c(BIC(full.Model2), BIC(backward.model), BIC(forward.model), BIC(stepwise.model))
+AdjR2.values <- c(summary(full.Model2)$adj.r.squared,
+                  summary(backward.model)$adj.r.squared,
+                  summary(forward.model)$adj.r.squared,
+                  summary(stepwise.model)$adj.r.squared)
+
+comparison <- data.frame(Model=model.names,
+                         AIC=round(AIC.values,2),
+                         BIC=round(BIC.values,2),
+                         Adjusted_R2=round(AdjR2.values,4))
+
+cat("\n===== MODEL COMPARISON =====\n")
+print(comparison)
+
+
+
+```
+
+############################################################
+# 7. IDENTIFY BEST MODEL
+############################################################
+```{r}
+best.AIC <- model.names[which.min(AIC.values)]
+best.BIC <- model.names[which.min(BIC.values)]
+best.AdjR2 <- model.names[which.max(AdjR2.values)]
+
+
+
+cat("\n===== FINAL SELECTED MODEL (Stepwise) =====\n")
+summary(stepwise.model)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+library(readr)
+Sample <- read_csv("StudentPerformanceFactors.csv")
+################################################################
+#Sample <- StudentPerformanceFactors
+dummyParental_I <- factor(Sample$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample$Motivation_Level)
+dummyInternet_Access<- factor(Sample$Internet_Access)
+dummyFamily_Income<- factor(Sample$Family_Income)
+dummyTeacher_Quality <- factor(Sample$Teacher_Quality)
+dummySchool_Type<- factor(Sample$School_Type)
+dummyPeer_Influence<- factor(Sample$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample$Distance_from_Home)
+dummyGender<- factor(Sample$Gender)
+################################################################
+v1 <- Sample$Hours_Studied
+v2 <- Sample$Attendance
+v3 <- Sample$Sleep_Hours
+v4 <- Sample$Previous_Scores
+v5 <- Sample$Tutoring_Sessions
+v6 <- Sample$Physical_Activity
+sample2 <- data.frame(v1,v2,v3,v4,v5,v6)
+library(corrplot)
+cor_matrix <- cor(sample2)
+cor_matrix 
+corrplot(cor_matrix, method = "circle", addCoef.col = "black",  # adds correlation coefficients as numbers
+         tl.col = "black", tl.srt = 45)
+
+######################################################################
+full.Model <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                 dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dummyPeer_Influence+dummyParental_Education_Level+
+                   dummyLearning_Disabilities+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample)
+install.packages("car")     
+library(car)                
+vif(full.Model)
+summary(full.Model)
+plot(full.Model)
+
+
+##########################################################
+RS <- rstandard(full.Model) 
+FM <- fitted(full.Model)          
+res <- residuals(full.Model)
+```
+
+
+```{r}
+# Standardized residuals
+######################################3
+# checking influential points
+plot(cooks.distance(full.Model),
+     pch = 19,
+     col = "blue",
+     main = "Cook's Distance (fullmodel)",
+     ylab = "Cook's Distance",
+     xlab = "Index")
+abline(h = 4/length(res), col = "red", lty = 2)
+
+cooks <- cooks.distance(full.Model)
+max_cooks <- max(cooks)
+max_cooks
+# indices with |std_res| > 3
+out_idx <- which(abs(RS) > 3)
+out_idx 
+
+A <- data.frame(Index = out_idx, Residuals = round(RS [out_idx], 6))
+A
+```
+
+
+###################################################################
+#after removing the outliers
+
+```{r}
+Sample3 <- Sample[-c(95, 218, 405, 530, 559, 561, 638, 771, 837, 920, 1100, 1108, 1110, 1352, 1526, 1608, 1845, 1864, 2077, 2293, 2422, 2426, 2514, 2543, 2596, 2688, 2905, 2955, 3125, 3142, 3365, 3458, 3580, 3925, 3933, 4193, 4255, 4298, 4356, 4406, 4532, 4584, 4667, 4780, 5126, 5967, 5990, 6348, 6394, 
+                     6523), ]
+
+dummyParental_I <- factor(Sample3$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample3$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample3$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample3$Motivation_Level)
+dummyInternet_Access<- factor(Sample3$Internet_Access)
+dummyFamily_Income<- factor(Sample3$Family_Income)
+dummyTeacher_Quality <- factor(Sample3$Teacher_Quality)
+dummySchool_Type<- factor(Sample3$School_Type)
+dummyPeer_Influence<- factor(Sample3$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample3$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample3$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample3$Distance_from_Home)
+dummyGender<- factor(Sample3$Gender)
+
+
+Sample3$Parental_Involvement       <- factor(Sample3$Parental_Involvement)
+Sample3$Access_to_Resources        <- factor(Sample3$Access_to_Resources)
+Sample3$Extracurricular_Activities <- factor(Sample3$Extracurricular_Activities)
+Sample3$Motivation_Level           <- factor(Sample3$Motivation_Level)
+Sample3$Internet_Access            <- factor(Sample3$Internet_Access)
+Sample3$Family_Income              <- factor(Sample3$Family_Income)
+Sample3$Teacher_Quality            <- factor(Sample3$Teacher_Quality)
+Sample3$School_Type                <- factor(Sample3$School_Type)
+Sample3$Peer_Influence             <- factor(Sample3$Peer_Influence)
+Sample3$Learning_Disabilities      <- factor(Sample3$Learning_Disabilities)
+Sample3$Parental_Education_Level   <- factor(Sample3$Parental_Education_Level)
+Sample3$Distance_from_Home         <- factor(Sample3$Distance_from_Home)
+Sample3$Gender                     <- factor(Sample3$Gender)
+
+
+
+
+v1 <- Sample3$Hours_Studied
+v2 <- Sample3$Attendance
+v3 <- Sample3$Sleep_Hours
+v4 <- Sample3$Previous_Scores
+v5 <- Sample3$Tutoring_Sessions
+v6 <- Sample3$Physical_Activity
+#####################################################################
+#model after removing the outliers seems more stable
+#full.Model2 <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                   #dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dum#myPeer_Influence+dummyParental_Education_Level+
+                   #dummyLearning_Disabilities+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample3)
+
+
+full.Model2 <- lm(
+  Exam_Score ~ Parental_Involvement + Access_to_Resources +
+    Extracurricular_Activities + Motivation_Level + Internet_Access +
+    Family_Income + Teacher_Quality + School_Type + Peer_Influence +
+    Parental_Education_Level + Learning_Disabilities + Distance_from_Home +
+    Gender + Hours_Studied + Attendance + Sleep_Hours + Previous_Scores +
+    Tutoring_Sessions + Physical_Activity,
+  data = Sample3
+)
+
+summary(full.Model2)
+plot(full.Model2)
+vif(full.Model2)
+
+#############################################################
+#Checking the assumptions
+#Residuals look normal
+#It looks like we have some heteroskedasticity but I cant tell because of the categorical varibles is it suppose to look like this?
+
+residuals(full.Model2)
+RS=rstandard(full.Model2)
+FM=fitted(full.Model2)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+####################################################
+#assumption 1,2
+plot(RS~FM,xlab="Fitted Values",ylab="Standard Resduals",pch=20,cex=3,col=2,main="standard residuals VS fitted values from the estimated regression model")
+abline(h=0,lty=10)
+
+#assumption 4
+qqPlot(RS, main = "Normal QQ Plot of Residuals")
+qqnorm(RS,col=4,cex=2,pch=19)
+qqline(RS,lty=2,col=1,cex=4,pch=20)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+
+#Outlier check
+plot(RS,
+     pch = 19,
+     col = "darkgreen",
+     main = "Standardized Residuals Index Plot (full model)",
+     ylab = "Standardized Residuals",
+     xlab = "Index")
+abline(h = c(-3, 3), col = "red", lty = 2)
+#########################################################################################################
+```
+```
+
+
+

@@ -1,0 +1,610 @@
+---
+title: "phase 2"
+author: "Jasmine Taha"
+date: "2025-12-10"
+output: html_document
+---
+
+```{r}
+library(readr)
+Sample <- read_csv("StudentPerformanceFactors.csv")
+#View(Sample)
+
+#class(Sample)
+str(Sample) #There are a few characters just need to convert them into as.factor
+
+Sample$Parental_Involvement      <- as.factor(Sample$Parental_Involvement)
+Sample$Access_to_Resources       <- as.factor(Sample$Access_to_Resources)
+Sample$Extracurricular_Activities<- as.factor(Sample$Extracurricular_Activities)
+Sample$Motivation_Level          <- as.factor(Sample$Motivation_Level)
+Sample$Internet_Access           <- as.factor(Sample$Internet_Access)
+Sample$Family_Income             <- as.factor(Sample$Family_Income)
+Sample$Teacher_Quality           <- as.factor(Sample$Teacher_Quality)
+Sample$School_Type               <- as.factor(Sample$School_Type)
+Sample$Peer_Influence            <- as.factor(Sample$Peer_Influence)
+Sample$Learning_Disabilities     <- as.factor(Sample$Learning_Disabilities)
+Sample$Parental_Education_Level  <- as.factor(Sample$Parental_Education_Level)
+Sample$Distance_from_Home        <- as.factor(Sample$Distance_from_Home)
+Sample$Gender                    <- as.factor(Sample$Gender)
+
+
+library(corrplot)
+#r=cor(Sample)
+#corrplot(r) #get an error because some are categorical
+
+
+only_numeric <- Sample[, sapply(Sample, is.numeric)]
+r=cor(only_numeric)
+corrplot(r,"number")
+
+
+#Okay so no multicollinearity in the numeric variables
+#Now can do VIF with all the covariates
+
+
+full.Model <- lm(
+  Exam_Score ~ Hours_Studied+ Attendance + Parental_Involvement +
+    Access_to_Resources + Extracurricular_Activities + Sleep_Hours +
+    Previous_Scores + Motivation_Level + Internet_Access +
+    Tutoring_Sessions + Family_Income + Teacher_Quality +
+    School_Type + Peer_Influence + Physical_Activity +
+    Learning_Disabilities + Parental_Education_Level +
+    Distance_from_Home + Gender,
+  data = Sample
+)
+
+library(car)
+vif(full.Model) #all covaruares have VIF around 1 
+
+#Checking for linearity scatterplots for the 
+#All look fine
+
+par(mfrow=c(2,3))  # 2 rows, 3 columns of plots
+
+# 1. Hours Studied
+plot(Sample$Hours_Studied, Sample$Exam_Score,
+     xlab="Hours Studied", ylab="Exam Score",
+     main="Exam Score vs Hours Studied")
+abline(lm(Exam_Score ~ Hours_Studied, data=Sample), col="red", lwd=2)
+
+# 2. Attendance
+plot(Sample$Attendance, Sample$Exam_Score,
+     xlab="Attendance", ylab="Exam Score",
+     main="Exam Score vs Attendance")
+abline(lm(Exam_Score ~ Attendance, data=Sample), col="red", lwd=2)
+
+# 3. Sleep Hours
+plot(Sample$Sleep_Hours, Sample$Exam_Score,
+     xlab="Sleep Hours", ylab="Exam Score",
+     main="Exam Score vs Sleep Hours")
+abline(lm(Exam_Score ~ Sleep_Hours, data=Sample), col="red", lwd=2)
+
+# 4. Previous Scores
+plot(Sample$Previous_Scores, Sample$Exam_Score,
+     xlab="Previous Scores", ylab="Exam Score",
+     main="Exam Score vs Previous Scores")
+abline(lm(Exam_Score ~ Previous_Scores, data=Sample), col="red", lwd=2)
+
+# 5. Tutoring Sessions
+plot(Sample$Tutoring_Sessions, Sample$Exam_Score,
+     xlab="Tutoring Sessions", ylab="Exam Score",
+     main="Exam Score vs Tutoring Sessions")
+abline(lm(Exam_Score ~ Tutoring_Sessions, data=Sample), col="red", lwd=2)
+
+# 6. Physical Activity
+plot(Sample$Physical_Activity, Sample$Exam_Score,
+     xlab="Physical Activity", ylab="Exam Score",
+     main="Exam Score vs Physical Activity")
+abline(lm(Exam_Score ~ Physical_Activity, data=Sample), col="red", lwd=2)
+
+par(mfrow=c(1,1))  # Reset layout
+
+
+
+#Testing for heteroskedesaticity 
+#Residuals all culminate around the mean (maybe due to categorical variables) but I think its heteroskedastic
+residuals(full.Model)
+#assumption 1,2 endogenity and 
+plot(RS~FM,xlab="Fitted Values",ylab="Standard Resduals",pch=20,cex=3,col=2,main="standard residuals VS fitted values from the estimated regression model")
+abline(h=0,lty=10)
+```
+
+```{r}
+Residualz <- residuals(full.Model)
+RS=rstandard(full.Model)
+
+summary(Residualz)
+#Quick check for endogenity
+#plot(Sample$Hours_Studied, RS)
+#abline(h = 0, col = "red")
+
+#cor(Residualz, Sample$Hours_Studied)
+#cor(Residualz, Sample$Attendance)
+#cor(Residualz, Sample$Previous_Scores)
+#cor(Residualz, Sample$Tutoring_Sessions)
+#cor(Residualz, Sample$Sleep_Hours)
+#cor(Residualz, Sample$Physical_Activity)
+
+
+
+FM=fitted(full.Model)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+####################################################
+#assumption 1,2
+plot(RS~FM,xlab="Fitted Values",ylab="Standard Resduals",pch=20,cex=3,col=2,main="standard residuals VS fitted values from the estimated regression model")
+abline(h=0,lty=10)
+#assumption 3 clear from the context because the countries are selected randomly
+#assumption 4
+qqPlot(RS, main = "Normal QQ Plot of Residuals")
+qqnorm(RS,col=4,cex=2,pch=19)
+qqline(RS,lty=2,col=1,cex=4,pch=20)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+#################################################################
+#Outliers  
+plot(rstandard(full.Model),pch=19,xlab="Index",ylab="IStudRes")       # Index plot of internally studentized Residuals 
+plot(cooks.distance(full.Model),pch=19,xlab="Index",ylab="Cook's Distance") # Index plot of Cook's distance
+plot(ols_leverage(full.Model),pch=19,xlab="Index",ylab="Leverage Values")
+
+```
+
+```{r}
+class(Sample)
+which(sapply(Sample, is.character))
+Sample[sapply(Sample, is.character)] <- 
+  lapply(Sample[sapply(Sample, is.character)], as.factor)
+
+
+hours <- Sample$Hours_Studied
+attendance        <- Sample$Attendance
+parent_involve     <- Sample$Parental_Involvement
+resources          <- Sample$Access_to_Resources
+extracurricular    <- Sample$Extracurricular_Activities
+sleep              <- Sample$Sleep_Hours
+previous_scores    <- Sample$Previous_Scores
+motivation         <- Sample$Motivation_Level
+internet           <- Sample$Internet_Access
+tutoring           <- Sample$Tutoring_Sessions
+income             <- Sample$Family_Income
+teacher_quality    <- Sample$Teacher_Quality
+school_type        <- Sample$School_Type
+peer               <- Sample$Peer_Influence
+physical_activity  <- Sample$Physical_Activity
+disability         <- Sample$Learning_Disabilities
+parent_edu         <- Sample$Parental_Education_Level
+distance           <- Sample$Distance_from_Home
+gender             <- Sample$Gender
+exam_score         <- Sample$Exam_Score
+
+
+
+
+```
+
+##checking multicollinearity
+
+```{r}
+summary(Sample)
+#install.packages("corrplot")
+library(corrplot)
+num_vars <- Sample[, sapply(Sample, is.numeric)]
+r <- cor(num_vars, use = "pairwise.complete.obs")
+r
+corrplot(r,method = "number")
+
+
+
+full.Model <- lm(
+  Exam_Score ~ Hours_Studied+ Attendance + Parental_Involvement +
+    Access_to_Resources + Extracurricular_Activities + Sleep_Hours +
+    Previous_Scores + Motivation_Level + Internet_Access +
+    Tutoring_Sessions + Family_Income + Teacher_Quality +
+    School_Type + Peer_Influence + Physical_Activity +
+    Learning_Disabilities + Parental_Education_Level +
+    Distance_from_Home + Gender,
+  data = Sample
+)
+```
+
+```{r}
+```
+
+```{r}
+summary(full.Model)
+
+#These 3 covariates are statistically insignficiant but we could still keep them
+Sample$Sleep_Hours
+Sample$Gender
+Sample$School_Type
+
+
+full.Model.2 <- lm( #here gonna exclude the insignificant ones and see which model performs better
+  Exam_Score ~ Hours_Studied+ Attendance + Parental_Involvement +
+    Access_to_Resources + Extracurricular_Activities  +
+    Previous_Scores + Motivation_Level + Internet_Access +
+    Tutoring_Sessions + Family_Income + Teacher_Quality + Peer_Influence + Physical_Activity +
+    Learning_Disabilities + Parental_Education_Level +
+    Distance_from_Home ,
+  data = Sample
+)
+summary(full.Model)
+summary(full.Model.2) #Okay none of the covariates changed so model 2 looks better and the fstatistic actually improved
+
+
+summary(full.Model)$adj.r.squared
+summary(full.Model.2)$adj.r.squared
+
+anova(full.Model.2, full.Model) #okay model 2 is clearly better the f statistic is 0.8
+```
+
+```{r}
+plot(full.Model.2,which=1) #unfortunate looks like there is heteroskedasticity
+
+library(lmtest)
+bptest(full.Model.2)
+
+ 
+#par(mfrow =c(2,2))
+#plot(full.Model)
+#par(mfrow = c(1,1))
+
+# corr exam sccore vs hours studied
+#r_exam_hours<-cov(exam_score,hours)/sqrt(var(exam_score)*var(hours))
+#corr exam score vs previous scores
+#r_exam_prev<-cov(exam_score,previous_scores)/sqrt(var(exam_score)*var(previous_scores))
+# corr exam vs motivatuons 
+
+
+
+#r_exam_hours
+#r_exam_prev
+#r_exam_motiv
+
+
+```
+
+## using VIF
+
+```{r}
+library(car)
+vif(full.Model)
+
+```
+
+## checking model assumptions
+
+```{r}
+
+plot(full.Model,col=9)
+```
+
+##linearity
+
+```{r}
+plot(Sample$Hours_Studied, Sample$Exam_Score,
+     xlab = "Hours Studied", ylab = "Exam Score",
+     main = "Linearity Check: Exam Score vs Hours Studied")
+abline(lm(Exam_Score ~ Hours_Studied, data = Sample), col = "red", lwd = 2)
+
+plot(Sample$Attendance, Sample$Exam_Score,
+     xlab = "Attendance (%)", ylab = "Exam Score",
+     main = "Linearity Check: Exam Score vs Attendance")
+abline(lm(Exam_Score ~ Attendance, data = Sample), col = "red", lwd = 2)
+plot(Sample$Previous_Scores, Sample$Exam_Score,
+     xlab = "Previous Scores", ylab = "Exam Score",
+     main = "Linearity Check: Exam Score vs Previous Scores")
+abline(lm(Exam_Score ~ Previous_Scores, data = Sample), col = "red", lwd = 2)
+
+
+```
+
+```{r}
+library(readr)
+Sample <- read_csv("StudentPerformanceFactors.csv")
+################################################################
+#Sample <- StudentPerformanceFactors
+dummyParental_I <- factor(Sample$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample$Motivation_Level)
+dummyInternet_Access<- factor(Sample$Internet_Access)
+dummyFamily_Income<- factor(Sample$Family_Income)
+dummyTeacher_Quality <- factor(Sample$Teacher_Quality)
+dummySchool_Type<- factor(Sample$School_Type)
+dummyPeer_Influence<- factor(Sample$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample$Distance_from_Home)
+dummyGender<- factor(Sample$Gender)
+################################################################
+v1 <- Sample$Hours_Studied
+v2 <- Sample$Attendance
+v3 <- Sample$Sleep_Hours
+v4 <- Sample$Previous_Scores
+v5 <- Sample$Tutoring_Sessions
+v6 <- Sample$Physical_Activity
+sample2 <- data.frame(v1,v2,v3,v4,v5,v6)
+library(corrplot)
+cor_matrix <- cor(sample2)
+cor_matrix 
+corrplot(cor_matrix, method = "circle", addCoef.col = "black",  # adds correlation coefficients as numbers
+         tl.col = "black", tl.srt = 45)
+
+######################################################################
+full.Model <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                 dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dummyPeer_Influence+
+                   dummyLearning_Disabilities+dummyParental_Education_Level+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample)
+install.packages("car")     
+library(car)                
+vif(full.Model)
+summary(full.Model)
+plot(full.Model)
+
+##########################################################
+RS <- rstandard(full.Model) 
+FM <- fitted(full.Model)          
+res <- residuals(full.Model)
+# Standardized residuals
+######################################3
+# checking influential points
+plot(cooks.distance(full.Model),
+     pch = 19,
+     col = "blue",
+     main = "Cook's Distance (fullmodel)",
+     ylab = "Cook's Distance",
+     xlab = "Index")
+abline(h = 4/length(res), col = "red", lty = 2)
+
+cooks <- cooks.distance(full.Model)
+max_cooks <- max(cooks)
+max_cooks
+# indices with |std_res| > 3
+out_idx <- which(abs(RS) > 3)
+out_idx 
+
+A <- data.frame(Index = out_idx, Residuals = round(RS [out_idx], 6))
+A
+###################################################################
+#after removing the outliers
+Sample3 <- Sample[-c(95, 218, 405, 530, 559, 561, 638, 771, 837, 920, 1100, 1108, 1110, 1352, 1526, 1608, 1845, 1864, 2077, 2293, 2422, 2426, 2514, 2543, 2596, 2688, 2905, 2955, 3125, 3142, 3365, 3458, 3580, 3925, 3933, 4193, 4255, 4298, 4356, 4406, 4532, 4584, 4667, 4780, 5126, 5967, 5990, 6348, 6394, 
+                     6523), ]
+
+dummyParental_I <- factor(Sample3$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample3$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample3$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample3$Motivation_Level)
+dummyInternet_Access<- factor(Sample3$Internet_Access)
+dummyFamily_Income<- factor(Sample3$Family_Income)
+dummyTeacher_Quality <- factor(Sample3$Teacher_Quality)
+dummySchool_Type<- factor(Sample3$School_Type)
+dummyPeer_Influence<- factor(Sample3$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample3$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample3$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample3$Distance_from_Home)
+dummyGender<- factor(Sample3$Gender)
+
+v1 <- Sample3$Hours_Studied
+v2 <- Sample3$Attendance
+v3 <- Sample3$Sleep_Hours
+v4 <- Sample3$Previous_Scores
+v5 <- Sample3$Tutoring_Sessions
+v6 <- Sample3$Physical_Activity
+#####################################################################
+#model after removing the outliers seems more stable
+full.Model2 <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                   dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dummyPeer_Influence+
+                   dummyLearning_Disabilities+dummyParental_Education_Level+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample3)
+summary(full.Model2)
+plot(full.Model2)
+#############################################################
+#Checking the assumptions
+#Residuals look normal
+#It looks like we have some heteroskedasticity but I cant tell because of the categorical varibles is it suppose to look like this?
+
+residuals(full.Model2)
+RS=rstandard(full.Model2)
+FM=fitted(full.Model2)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+####################################################
+#assumption 1,2
+plot(RS~FM,xlab="Fitted Values",ylab="Standard Resduals",pch=20,cex=3,col=2,main="standard residuals VS fitted values from the estimated regression model")
+abline(h=0,lty=10)
+
+#assumption 4
+qqPlot(RS, main = "Normal QQ Plot of Residuals")
+qqnorm(RS,col=4,cex=2,pch=19)
+qqline(RS,lty=2,col=1,cex=4,pch=20)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+
+#Outlier check
+plot(RS,
+     pch = 19,
+     col = "darkgreen",
+     main = "Standardized Residuals Index Plot (full model)",
+     ylab = "Standardized Residuals",
+     xlab = "Index")
+abline(h = c(-3, 3), col = "red", lty = 2)
+#########################################################################################################
+```
+
+
+
+
+```{r}
+library(readr)
+Sample <- read_csv("StudentPerformanceFactors.csv")
+################################################################
+#Sample <- StudentPerformanceFactors
+dummyParental_I <- factor(Sample$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample$Motivation_Level)
+dummyInternet_Access<- factor(Sample$Internet_Access)
+dummyFamily_Income<- factor(Sample$Family_Income)
+dummyTeacher_Quality <- factor(Sample$Teacher_Quality)
+dummySchool_Type<- factor(Sample$School_Type)
+dummyPeer_Influence<- factor(Sample$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample$Distance_from_Home)
+dummyGender<- factor(Sample$Gender)
+################################################################
+v1 <- Sample$Hours_Studied
+v2 <- Sample$Attendance
+v3 <- Sample$Sleep_Hours
+v4 <- Sample$Previous_Scores
+v5 <- Sample$Tutoring_Sessions
+v6 <- Sample$Physical_Activity
+sample2 <- data.frame(v1,v2,v3,v4,v5,v6)
+library(corrplot)
+cor_matrix <- cor(sample2)
+cor_matrix 
+corrplot(cor_matrix, method = "circle", addCoef.col = "black",  # adds correlation coefficients as numbers
+         tl.col = "black", tl.srt = 45)
+
+######################################################################
+full.Model <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                 dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dummyPeer_Influence+dummyParental_Education_Level+
+                   dummyLearning_Disabilities+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample)
+install.packages("car")     
+library(car)                
+vif(full.Model)
+summary(full.Model)
+plot(full.Model)
+
+##########################################################
+RS <- rstandard(full.Model) 
+FM <- fitted(full.Model)          
+res <- residuals(full.Model)
+# Standardized residuals
+######################################3
+# checking influential points
+plot(cooks.distance(full.Model),
+     pch = 19,
+     col = "blue",
+     main = "Cook's Distance (fullmodel)",
+     ylab = "Cook's Distance",
+     xlab = "Index")
+abline(h = 4/length(res), col = "red", lty = 2)
+
+cooks <- cooks.distance(full.Model)
+max_cooks <- max(cooks)
+max_cooks
+# indices with |std_res| > 3
+out_idx <- which(abs(RS) > 3)
+out_idx 
+
+A <- data.frame(Index = out_idx, Residuals = round(RS [out_idx], 6))
+A
+###################################################################
+#after removing the outliers
+```
+
+
+```{r}
+Sample3 <- Sample[-c(95, 218, 405, 530, 559, 561, 638, 771, 837, 920, 1100, 1108, 1110, 1352, 1526, 1608, 1845, 1864, 2077, 2293, 2422, 2426, 2514, 2543, 2596, 2688, 2905, 2955, 3125, 3142, 3365, 3458, 3580, 3925, 3933, 4193, 4255, 4298, 4356, 4406, 4532, 4584, 4667, 4780, 5126, 5967, 5990, 6348, 6394, 
+                     6523), ]
+
+dummyParental_I <- factor(Sample3$Parental_Involvement)
+dummyAccess_to_Resources<- factor(Sample3$Access_to_Resources)
+dummyExtracurricular_Activities<- factor(Sample3$Extracurricular_Activities)
+dummyMotivation_Level<- factor(Sample3$Motivation_Level)
+dummyInternet_Access<- factor(Sample3$Internet_Access)
+dummyFamily_Income<- factor(Sample3$Family_Income)
+dummyTeacher_Quality <- factor(Sample3$Teacher_Quality)
+dummySchool_Type<- factor(Sample3$School_Type)
+dummyPeer_Influence<- factor(Sample3$Peer_Influence)
+dummyLearning_Disabilities<- factor(Sample3$Learning_Disabilities)
+dummyParental_Education_Level<- factor(Sample3$Parental_Education_Level)
+dummyDistance_from_Home<- factor(Sample3$Distance_from_Home)
+dummyGender<- factor(Sample3$Gender)
+
+
+Sample3$Parental_Involvement       <- factor(Sample3$Parental_Involvement)
+Sample3$Access_to_Resources        <- factor(Sample3$Access_to_Resources)
+Sample3$Extracurricular_Activities <- factor(Sample3$Extracurricular_Activities)
+Sample3$Motivation_Level           <- factor(Sample3$Motivation_Level)
+Sample3$Internet_Access            <- factor(Sample3$Internet_Access)
+Sample3$Family_Income              <- factor(Sample3$Family_Income)
+Sample3$Teacher_Quality            <- factor(Sample3$Teacher_Quality)
+Sample3$School_Type                <- factor(Sample3$School_Type)
+Sample3$Peer_Influence             <- factor(Sample3$Peer_Influence)
+Sample3$Learning_Disabilities      <- factor(Sample3$Learning_Disabilities)
+Sample3$Parental_Education_Level   <- factor(Sample3$Parental_Education_Level)
+Sample3$Distance_from_Home         <- factor(Sample3$Distance_from_Home)
+Sample3$Gender                     <- factor(Sample3$Gender)
+
+
+
+
+v1 <- Sample3$Hours_Studied
+v2 <- Sample3$Attendance
+v3 <- Sample3$Sleep_Hours
+v4 <- Sample3$Previous_Scores
+v5 <- Sample3$Tutoring_Sessions
+v6 <- Sample3$Physical_Activity
+#####################################################################
+#model after removing the outliers seems more stable
+#full.Model2 <- lm(Exam_Score ~ dummyParental_I+dummyAccess_to_Resources+dummyExtracurricular_Activities+dummyMotivation_Level+
+                   #dummyInternet_Access+dummyFamily_Income+dummyTeacher_Quality+dummySchool_Type+dum#myPeer_Influence+dummyParental_Education_Level+
+                   #dummyLearning_Disabilities+dummyDistance_from_Home+dummyGender+v1+v2+v3+v4+v5+v6,data = Sample3)
+
+
+full.Model2 <- lm(
+  Exam_Score ~ Parental_Involvement + Access_to_Resources +
+    Extracurricular_Activities + Motivation_Level + Internet_Access +
+    Family_Income + Teacher_Quality + School_Type + Peer_Influence +
+    Parental_Education_Level + Learning_Disabilities + Distance_from_Home +
+    Gender + Hours_Studied + Attendance + Sleep_Hours + Previous_Scores +
+    Tutoring_Sessions + Physical_Activity,
+  data = Sample3
+)
+
+summary(full.Model2)
+plot(full.Model2)
+vif(full.Model2)
+
+```
+
+
+```{r}
+#############################################################
+#Checking the assumptions
+#Residuals look normal
+#It looks like we have some heteroskedasticity but I cant tell because of the categorical varibles is it suppose to look like this?
+
+residuals(full.Model2)
+RS=rstandard(full.Model2)
+FM=fitted(full.Model2)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+####################################################
+#assumption 1,2
+plot(RS~FM,xlab="Fitted Values",ylab="Standard Resduals",pch=20,cex=3,col=2,main="standard residuals VS fitted values from the estimated regression model")
+abline(h=0,lty=10)
+
+#assumption 4
+qqPlot(RS, main = "Normal QQ Plot of Residuals")
+qqnorm(RS,col=4,cex=2,pch=19)
+qqline(RS,lty=2,col=1,cex=4,pch=20)
+hist(RS,xlab="Standard Resduals",main="Histogram of standard Resdual",col=4,freq = FALSE ,breaks = 11,prob=T,ylim = c(0,1))
+lines(density(RS),col=1,lwd=3)
+
+#Outlier check
+plot(RS,
+     pch = 19,
+     col = "darkgreen",
+     main = "Standardized Residuals Index Plot (full model)",
+     ylab = "Standardized Residuals",
+     xlab = "Index")
+abline(h = c(-3, 3), col = "red", lty = 2)
+#########################################################################################################
+```
+
+```
+
+
+
